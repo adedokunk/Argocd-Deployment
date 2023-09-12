@@ -1,0 +1,74 @@
+pipeline {
+    agent any
+    tools {
+        jdk 'jdk11'
+        maven 'maven3'
+    }
+    stages {
+        stage('Checkout') {
+            steps {
+                echo 'Passed'
+                checkout([$class: 'GitSCM', branches: [[name: 'main']], userRemoteConfigs: [[url: 'https://github.com/adedokunk/Argocd-Deployment.git']]])
+            }
+        }
+        stage('Build and Test') {
+            steps {
+                sh 'ls -ltr'
+                dir('java-maven-sonar-argocd-helm-k8s/spring-boot-app') {
+                    sh 'mvn clean package'
+                }
+            }
+        }
+        stage('Static Code Analysis') {
+            environment {
+                SONAR_URL = "http://54.144.132.229:9000/"
+            }
+            steps {
+                withCredentials([string(credentialsId: 'sonarqube', variable: 'SONAR_AUTH_TOKEN')]) {
+                    dir('java-maven-sonar-argocd-helm-k8s/spring-boot-app') {
+                        sh "mvn sonar:sonar -Dsonar.login=${SONAR_AUTH_TOKEN} -Dsonar.host.url=${SONAR_URL}"
+                    }
+                }
+            }
+        }
+        stage('Build and Push Docker Image') {
+            environment {
+                DOCKER_IMAGE = "adedokunk/ultimate-cicd:${BUILD_NUMBER}"
+            }
+            steps {
+                withCredentials([[$class: 'UsernamePasswordMultiBinding', credentialsId: 'docker-cred', usernameVariable: 'DOCKER_USERNAME', passwordVariable: 'DOCKER_PASSWORD']]) {
+                    dir('java-maven-sonar-argocd-helm-k8s/spring-boot-app') {
+                        script {
+                            sh "docker build -t ${DOCKER_IMAGE} ."
+                            def dockerImage = docker.image("${DOCKER_IMAGE}")
+                            docker.withRegistry('', "${DOCKER_USERNAME}:${DOCKER_PASSWORD}") {
+                                dockerImage.push()
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        stage('Update Deployment File') {
+            environment {
+                GIT_REPO_NAME = "Argocd-Deployment"
+                GIT_USER_NAME = "adedokunk"
+            }
+            steps {
+                withCredentials([string(credentialsId: 'github', variable: 'GITHUB_TOKEN')]) {
+                    script {
+                        sh '''
+                            git config user.email "aniyalorungade@gmail.com"
+                            git config user.name "Adedokun Kazeem"
+                            BUILD_NUMBER=${BUILD_NUMBER}
+                            sed -i "s/replaceImageTag/${BUILD_NUMBER}/g" java-maven-sonar-argocd-helm-k8s/spring-boot-app-manifests/deployment.yml
+                            git add java-maven-sonar-argocd-helm-k8s/spring-boot-app-manifests/deployment.yml
+                            git commit -m "Update deployment image to version ${BUILD_NUMBER}"
+                            git push https://${GITHUB_TOKEN}@github.com/${GIT_USER_NAME}/${GIT_REPO_NAME} HEAD:main
+                        '''
+                    }
+                }
+            }
+        }
+    }
+}
