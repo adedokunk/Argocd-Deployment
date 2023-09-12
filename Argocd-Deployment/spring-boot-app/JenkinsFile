@@ -14,9 +14,7 @@ pipeline {
         stage('Build and Test') {
             steps {
                 sh 'ls -ltr'
-                //dir('java-maven-sonar-argocd-helm-k8s/spring-boot-app') {
-                    sh 'mvn clean package'
-                }
+                sh 'mvn clean package'
             }
         }
         stage('Static Code Analysis') {
@@ -25,9 +23,7 @@ pipeline {
             }
             steps {
                 withCredentials([string(credentialsId: 'sonarqube', variable: 'SONAR_AUTH_TOKEN')]) {
-                    dir('Argocd-Deployment/spring-boot-app') {
-                        sh "mvn sonar:sonar -Dsonar.login=${SONAR_AUTH_TOKEN} -Dsonar.host.url=${SONAR_URL}"
-                    }
+                    sh "mvn sonar:sonar -Dsonar.login=${SONAR_AUTH_TOKEN} -Dsonar.host.url=${SONAR_URL}"
                 }
             }
         }
@@ -37,13 +33,11 @@ pipeline {
             }
             steps {
                 withCredentials([[$class: 'UsernamePasswordMultiBinding', credentialsId: 'docker-cred', usernameVariable: 'DOCKER_USERNAME', passwordVariable: 'DOCKER_PASSWORD']]) {
-                    dir('Argocd-Deployment/spring-boot-app') {
-                        script {
-                            sh "docker build -t ${DOCKER_IMAGE} ."
-                            def dockerImage = docker.image("${DOCKER_IMAGE}")
-                            docker.withRegistry('', "${DOCKER_USERNAME}:${DOCKER_PASSWORD}") {
-                                dockerImage.push()
-                            }
+                    script {
+                        sh "docker build -t ${DOCKER_IMAGE} ."
+                        def dockerImage = docker.image("${DOCKER_IMAGE}")
+                        docker.withRegistry('', "${DOCKER_USERNAME}:${DOCKER_PASSWORD}") {
+                            dockerImage.push()
                         }
                     }
                 }
@@ -71,4 +65,4 @@ pipeline {
             }
         }
     }
-
+}
