@@ -48,7 +48,7 @@ pipeline {
             }
         }
         stage('Update Deployment File') {
-            environment {
+          environment {
                 GIT_REPO_NAME = "Argocd-Deployment"
                 GIT_USER_NAME = "adedokunk"
             }
