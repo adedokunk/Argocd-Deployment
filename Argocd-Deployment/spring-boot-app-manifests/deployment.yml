@@ -16,6 +16,6 @@ spec:
     spec:
       containers:
       - name: spring-boot-app
-        image: adedokunk/my-app:replaceImageTag
+        image: adedokunk/my-app:17
         ports:
         - containerPort: 8080
